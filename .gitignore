@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# Model weights & data — NEVER commit these
+*.pt
+*.pth
+*.zip
+*.csv
+*.png
+*.jpg
+*.jpeg
+
+# Secrets
+.env
+*secret*
+*apikey*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Node (for the frontend later)
+node_modules/
+dist/
+build/
