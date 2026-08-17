@@ -17,11 +17,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  async function handleAnalyze(file) {
+  async function handleAnalyze(file, useDiffusion) {
     setLoading(true);
     setError(null);
     try {
-      const data = await analyzeImage(file);
+      const data = await analyzeImage(file, useDiffusion);
       setResult(data);
     } catch (err) {
       setError(err.message);

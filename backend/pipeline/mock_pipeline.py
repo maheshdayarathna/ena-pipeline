@@ -21,7 +21,7 @@ class MockPipeline(Pipeline):
     def __init__(self, seed: int = 0):
         self.seed = seed
 
-    def analyze(self, image_bytes: bytes, filename: str = "") -> PipelineResult:
+    def analyze(self, image_bytes: bytes, filename: str = "", use_diffusion: bool = False) -> PipelineResult:
         # seed off the image so the same image gives the same result,
         # but different images vary
         rng = random.Random(self.seed + (len(image_bytes) % 1000))

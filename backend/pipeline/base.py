@@ -28,7 +28,7 @@ class Pipeline(ABC):
     """Abstract pipeline: image bytes -> classified cells."""
 
     @abstractmethod
-    def analyze(self, image_bytes: bytes, filename: str = "") -> PipelineResult:
+    def analyze(self, image_bytes: bytes, filename: str = "", use_diffusion: bool = False) -> PipelineResult:
         """
         Run the full pipeline on one image and return classified cells.
 

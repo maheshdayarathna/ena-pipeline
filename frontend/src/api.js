@@ -11,12 +11,17 @@ export const API_BASE = "http://127.0.0.1:8000";
  * backend runs its pipeline and returns { biomarker, meta } -> App stores
  * that in state and passes it down to the results sections as props.
  *
+ * useDiffusion is sent as the "use_diffusion" form field (matching the
+ * backend's `use_diffusion: bool = Form(False)` parameter) to opt into the
+ * slower diffusion-inpainting reconstruction.
+ *
  * Throws an Error with a human-readable message on network failure or a
  * non-2xx response, so callers can show it directly to the user.
  */
-export async function analyzeImage(file) {
+export async function analyzeImage(file, useDiffusion = false) {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("use_diffusion", useDiffusion ? "true" : "false");
 
   let response;
   try {

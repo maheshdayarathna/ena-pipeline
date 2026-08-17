@@ -17,7 +17,7 @@ Docs: http://127.0.0.1:8000/docs
 from __future__ import annotations
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.biomarker import Cell, CellSource, compute_biomarker
@@ -90,10 +90,14 @@ def biomarker(req: BiomarkerRequest) -> BiomarkerResponse:
 
 
 @app.post("/analyze", tags=["biomarker"])
-async def analyze(request: Request, file: UploadFile = File(...)) -> dict:
+async def analyze(request: Request, file: UploadFile = File(...),
+                  use_diffusion: bool = Form(False)) -> dict:
     """
     Upload a smear image -> run the (pre-loaded) pipeline -> three-way biomarker.
-    The pipeline is reused from app.state, so models are not reloaded per request.
+
+    use_diffusion=False (default): fast, watershed-only reconstruction (~40s).
+    use_diffusion=True: full pipeline incl. diffusion inpainting of clipped cells
+      (SLOW on CPU, several minutes; approximate sample, capped).
     """
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail="Please upload an image file.")
@@ -102,7 +106,7 @@ async def analyze(request: Request, file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=400, detail="Empty file.")
 
     pipe: Pipeline = request.app.state.pipeline
-    result = pipe.analyze(image_bytes, filename=file.filename or "")
+    result = pipe.analyze(image_bytes, filename=file.filename or "", use_diffusion=use_diffusion)
     biomarker_resp = _biomarker_payload(compute_biomarker(result.cells))
 
     return {
