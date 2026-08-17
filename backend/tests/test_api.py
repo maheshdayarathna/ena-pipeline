@@ -69,3 +69,31 @@ def test_breakdown_present():
     sources = {b["source"]: b for b in d["breakdown_by_source"]}
     assert sources["single"]["abnormal"] == 1
     assert sources["inpainted"]["total"] == 1
+
+
+# ---------- /analyze (mock pipeline, image upload) ----------
+def test_analyze_with_image():
+    # a tiny fake image payload; content_type marks it as an image
+    fake_image = b"\x89PNG\r\n\x1a\n" + b"0" * 200
+    r = client.post("/analyze",
+                    files={"file": ("smear.png", fake_image, "image/png")})
+    assert r.status_code == 200
+    d = r.json()
+    assert "biomarker" in d and "meta" in d
+    # mock flags itself as synthetic
+    assert "SYNTHETIC" in d["meta"]["note"]
+    # biomarker A is present and sensible
+    assert d["biomarker"]["A_real_only"]["total_cells"] > 0
+    assert "stage_counts" in d["meta"]
+
+
+def test_analyze_rejects_non_image():
+    r = client.post("/analyze",
+                    files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert r.status_code == 415
+
+
+def test_analyze_rejects_empty():
+    r = client.post("/analyze",
+                    files={"file": ("empty.png", b"", "image/png")})
+    assert r.status_code == 400
