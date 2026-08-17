@@ -6,22 +6,42 @@ Endpoints:
   POST /biomarker  - compute biomarker from a list of already-classified cells
   POST /analyze    - upload a smear image -> run pipeline -> biomarker
 
-The pipeline is currently the MOCK (synthetic cells, no models) so the full
-upload->count flow can be tested. Swapping in the real model-backed pipeline
-is a one-line change (see get_pipeline()).
+The pipeline (RealPipeline: YOLO detection + DenseNet classification) is loaded
+ONCE at server startup and reused for every request, so models are not reloaded
+per upload. To swap pipelines, change build_pipeline().
 
 Run:  uvicorn main:app --reload
 Docs: http://127.0.0.1:8000/docs
 """
 
 from __future__ import annotations
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.biomarker import Cell, CellSource, compute_biomarker
 from core.schemas import BiomarkerRequest, BiomarkerResponse
 from pipeline.base import Pipeline
 from pipeline.mock_pipeline import MockPipeline
+from pipeline.real_pipeline import RealPipeline
+
+
+# ---- choose which pipeline the app uses ----
+def build_pipeline() -> Pipeline:
+    # swap to MockPipeline() if you want to run without models
+    return RealPipeline()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # runs ONCE at startup: build the pipeline (models load here, not per request)
+    print("Loading pipeline (this loads the models once)...")
+    app.state.pipeline = build_pipeline()
+    print("Pipeline ready.")
+    yield
+    # (nothing to clean up on shutdown)
+
 
 app = FastAPI(
     title="ENA Biomarker API",
@@ -30,7 +50,8 @@ app = FastAPI(
         "blood smears. Three-way biomarker: A real-only (primary), B combined, "
         "C reconstruction-only (exploratory)."
     ),
-    version="0.2.0",
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -42,11 +63,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ---- pipeline selection (swap mock -> real here later) ----
-def get_pipeline() -> Pipeline:
-    return MockPipeline()
 
 
 def _biomarker_payload(result) -> BiomarkerResponse:
@@ -74,13 +90,10 @@ def biomarker(req: BiomarkerRequest) -> BiomarkerResponse:
 
 
 @app.post("/analyze", tags=["biomarker"])
-async def analyze(file: UploadFile = File(...)) -> dict:
+async def analyze(request: Request, file: UploadFile = File(...)) -> dict:
     """
-    Upload a smear image -> run the pipeline -> three-way biomarker.
-
-    Currently uses the MOCK pipeline (synthetic cells). The response includes
-    a 'meta' block flagging that the cells are synthetic and giving per-stage
-    counts, so it is obvious in the UI that no real models are loaded yet.
+    Upload a smear image -> run the (pre-loaded) pipeline -> three-way biomarker.
+    The pipeline is reused from app.state, so models are not reloaded per request.
     """
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail="Please upload an image file.")
@@ -88,7 +101,7 @@ async def analyze(file: UploadFile = File(...)) -> dict:
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty file.")
 
-    pipe = get_pipeline()
+    pipe: Pipeline = request.app.state.pipeline
     result = pipe.analyze(image_bytes, filename=file.filename or "")
     biomarker_resp = _biomarker_payload(compute_biomarker(result.cells))
 

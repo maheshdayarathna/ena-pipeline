@@ -69,17 +69,36 @@ class CellClassifier:
         label = ABNORMAL if p_abnormal >= 0.5 else NORMAL
         return label, p_abnormal
 
-    def classify_boxes(self, image: Image.Image, boxes) -> List[Tuple[str, float]]:
-        """Crop each box from the image and classify. boxes: objects with x1,y1,x2,y2."""
+    @torch.no_grad()
+    def classify_boxes(self, image: Image.Image, boxes, batch_size: int = 32) -> List[Tuple[str, float]]:
+        """
+        Crop each box and classify in BATCHES (much faster on CPU than one at a
+        time). boxes: objects with x1,y1,x2,y2. Returns (label, p_abnormal) per box.
+        """
+        self._ensure_loaded()
         image = image.convert("RGB")
-        out = []
-        for b in boxes:
+
+        # crop all boxes first; remember which are too-small (skipped)
+        tensors = []
+        valid_idx = []
+        results: List[Tuple[str, float]] = [(NORMAL, 0.0)] * len(boxes)
+        for i, b in enumerate(boxes):
             crop = image.crop((int(b.x1), int(b.y1), int(b.x2), int(b.y2)))
             if crop.width < 2 or crop.height < 2:
-                out.append((NORMAL, 0.0))
                 continue
-            out.append(self.classify_crop(crop))
-        return out
+            tensors.append(self._tf(crop))
+            valid_idx.append(i)
+
+        # run the classifier in batches
+        for start in range(0, len(tensors), batch_size):
+            batch = torch.stack(tensors[start:start + batch_size]).to(self._device)
+            probs = self._model(batch).softmax(1)          # (B, 2)
+            p_abn = probs[:, self.abnormal_index]           # (B,)
+            for j, p in enumerate(p_abn.tolist()):
+                idx = valid_idx[start + j]
+                label = ABNORMAL if p >= 0.5 else NORMAL
+                results[idx] = (label, float(p))
+        return results
 
 
 # ------------------------------------------------------------------
