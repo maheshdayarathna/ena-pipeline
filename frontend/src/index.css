@@ -1,0 +1,262 @@
+/* Global styles for the whole app. Kept in one file, organized top-to-bottom
+   in the same order the sections appear on the page, so it's easy to map a
+   class name back to the component that uses it. */
+
+:root {
+  --text: #333;
+  --text-muted: #666;
+  --bg: #ffffff;
+  --bg-soft: #fafafa;
+  --border: #e2e2e2;
+  --accent: #2f6fed;
+  --accent-soft: #eaf1ff;
+  --amber-bg: #fff8e1;
+  --amber-border: #f0c36d;
+  --amber-text: #8a6100;
+  --error: #c0392b;
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+/* ---- Header ---- */
+.header h1 {
+  font-size: 28px;
+  margin: 0 0 4px;
+}
+.header .subtitle {
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+/* ---- Synthetic data banner ---- */
+.synthetic-banner {
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  color: var(--amber-text);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* ---- Shared card / section styling ---- */
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.card h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.section-intro {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.card-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.card-row > * {
+  flex: 1 1 260px;
+}
+
+/* ---- Upload section ---- */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.preview-wrap {
+  display: flex;
+  justify-content: center;
+}
+.preview-img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  background: #b7c6e8;
+  cursor: not-allowed;
+}
+.error-text {
+  color: var(--error);
+  margin-top: 12px;
+}
+
+/* ---- Biomarker cards ---- */
+.biomarker-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: var(--bg-soft);
+}
+.biomarker-card--primary {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+.biomarker-card h3 {
+  font-size: 15px;
+  margin: 4px 0 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.hero-number {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.sub-number {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.hero-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.cell-counts {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 0;
+}
+.cell-counts dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.cell-counts dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* ---- Comparison chart ---- */
+.chart {
+  margin-top: 20px;
+}
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  height: 160px;
+  padding: 0 16px;
+}
+.chart-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+.chart-bar-value {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chart-bar {
+  width: 48px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+  min-height: 2px;
+}
+.chart-bar--A {
+  background: #2f6fed;
+}
+.chart-bar--B {
+  background: #7a5cf0;
+}
+.chart-bar--C {
+  background: #e0762f;
+}
+.chart-bar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  text-align: center;
+}
+.chart-caption {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* ---- Breakdown tables ---- */
+.breakdown-table h4 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.breakdown-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.breakdown-table th,
+.breakdown-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: right;
+}
+.breakdown-table th:first-child,
+.breakdown-table td:first-child {
+  text-align: left;
+}
+.breakdown-table thead {
+  background: var(--bg-soft);
+}
