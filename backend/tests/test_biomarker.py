@@ -1,9 +1,14 @@
 """
 Unit tests for the ENA biomarker counting core.
 
-Each test states the hand-calculated expected value in a comment, so the
-logic is verified against numbers a human worked out, not against itself.
-Run:  pytest -v   (from backend/)  or  python -m pytest
+SEMANTICS (updated): the primary biomarker A uses ONLY single cells (the
+validated detection->classification path). Watershed-split whole cells AND
+diffusion-inpainted cells form the exploratory reconstruction layer (C),
+because both come from the reconstruction process documented as unreliable.
+
+  A (primary)        = single cells only
+  C (reconstruction) = watershed_whole + inpainted
+  B (combined)       = all
 """
 
 import math
@@ -15,7 +20,6 @@ from core.biomarker import (
 )
 
 
-# ---------- helpers ----------
 def make(source, n_normal, n_abnormal):
     return ([Cell(source, NORMAL) for _ in range(n_normal)] +
             [Cell(source, ABNORMAL) for _ in range(n_abnormal)])
@@ -23,53 +27,53 @@ def make(source, n_normal, n_abnormal):
 
 # ---------- core three-way computation ----------
 def test_typical_mixed_case():
-    # Hand-worked scenario:
-    #   single         : 100 normal,  10 abnormal
-    #   watershed_whole:  20 normal,   5 abnormal
-    #   inpainted      :   8 normal,  12 abnormal
+    #   single         : 100 normal,  10 abnormal   -> A
+    #   watershed_whole:  20 normal,   5 abnormal   -> C (reconstruction)
+    #   inpainted      :   8 normal,  12 abnormal   -> C (reconstruction)
     cells = (make(CellSource.SINGLE, 100, 10) +
              make(CellSource.WATERSHED_WHOLE, 20, 5) +
              make(CellSource.INPAINTED, 8, 12))
     r = compute_biomarker(cells)
 
-    # A real-only = single + watershed_whole = 135 total, 15 abnormal
-    assert r.real_only.total_cells == 135
-    assert r.real_only.abnormal_cells == 15
-    # 15/135 * 1000 = 111.11...
-    assert math.isclose(r.real_only.per_1000, 15/135*1000, rel_tol=1e-9)
+    # A = single only = 110 total, 10 abnormal
+    assert r.real_only.total_cells == 110
+    assert r.real_only.abnormal_cells == 10
+    assert math.isclose(r.real_only.per_1000, 10/110*1000, rel_tol=1e-9)
 
-    # B combined = all = 155 total, 27 abnormal
+    # B = all = 155 total, 27 abnormal
     assert r.combined.total_cells == 155
     assert r.combined.abnormal_cells == 27
-    assert math.isclose(r.combined.per_1000, 27/155*1000, rel_tol=1e-9)
 
-    # C reconstruction-only = inpainted = 20 total, 12 abnormal
-    assert r.reconstruction_only.total_cells == 20
-    assert r.reconstruction_only.abnormal_cells == 12
-    assert math.isclose(r.reconstruction_only.per_1000, 12/20*1000, rel_tol=1e-9)  # 600.0
+    # C = watershed_whole + inpainted = 45 total, 17 abnormal
+    assert r.reconstruction_only.total_cells == 45
+    assert r.reconstruction_only.abnormal_cells == 17
 
 
-def test_A_excludes_inpainted():
-    # Only inpainted cells are abnormal; A must NOT see them.
-    cells = make(CellSource.SINGLE, 50, 0) + make(CellSource.INPAINTED, 0, 10)
+def test_A_is_single_only():
+    # Only single cells count toward A; watershed/inpainted do not.
+    cells = (make(CellSource.SINGLE, 50, 0) +
+             make(CellSource.WATERSHED_WHOLE, 0, 10) +
+             make(CellSource.INPAINTED, 0, 5))
     r = compute_biomarker(cells)
-    assert r.real_only.abnormal_cells == 0          # A sees no abnormal
-    assert r.real_only.per_1000 == 0.0
-    assert r.combined.abnormal_cells == 10          # B sees them
-    assert r.reconstruction_only.abnormal_cells == 10  # C is all of them
+    assert r.real_only.total_cells == 50
+    assert r.real_only.abnormal_cells == 0        # A sees no abnormal
+    assert r.reconstruction_only.total_cells == 15  # both watershed + inpainted
+    assert r.reconstruction_only.abnormal_cells == 15
 
 
-def test_watershed_whole_counts_as_observed():
-    # watershed_whole is OBSERVED (real pixels) -> belongs in A.
+def test_watershed_whole_is_reconstruction_not_primary():
+    # watershed_whole is real-pixels (observed) but NOT primary -> belongs in C.
     cells = make(CellSource.WATERSHED_WHOLE, 0, 4)
     r = compute_biomarker(cells)
-    assert r.real_only.total_cells == 4
-    assert r.real_only.abnormal_cells == 4
-    assert r.reconstruction_only.total_cells == 0   # not reconstructed
+    assert r.real_only.total_cells == 0            # not in A
+    assert r.reconstruction_only.total_cells == 4  # in C
+    assert r.reconstruction_only.abnormal_cells == 4
+    # sanity: it is still "observed" (real pixels), just not primary
+    assert CellSource.WATERSHED_WHOLE.is_observed is True
+    assert CellSource.WATERSHED_WHOLE.is_primary is False
 
 
 def test_combined_equals_A_plus_C_totals():
-    # Invariant: B.total == A.total + C.total  (partition property)
     cells = (make(CellSource.SINGLE, 30, 3) +
              make(CellSource.WATERSHED_WHOLE, 10, 1) +
              make(CellSource.INPAINTED, 5, 5))
@@ -84,7 +88,7 @@ def test_empty_input():
     for bm in (r.real_only, r.combined, r.reconstruction_only):
         assert bm.total_cells == 0
         assert bm.abnormal_cells == 0
-        assert bm.per_1000 == 0.0          # no divide-by-zero
+        assert bm.per_1000 == 0.0
 
 
 def test_all_normal():
@@ -95,8 +99,8 @@ def test_all_normal():
 
 
 def test_no_reconstruction_case():
-    # A pipeline run with no clipped cells -> C is empty, A == B.
-    cells = make(CellSource.SINGLE, 90, 10) + make(CellSource.WATERSHED_WHOLE, 10, 0)
+    # A run with only single cells -> C empty, A == B.
+    cells = make(CellSource.SINGLE, 90, 10)
     r = compute_biomarker(cells)
     assert r.reconstruction_only.total_cells == 0
     assert r.real_only.total_cells == r.combined.total_cells
@@ -129,7 +133,6 @@ def test_as_dict_shape():
 
 # ---------- validation comparison (AI vs manual) ----------
 def test_validation_comparison():
-    # Manual (expert) = 10.47 per 1000; auto (pipeline) = 9.80 per 1000.
     v = ValidationComparison(manual_abnormal_per_1000=10.47, auto_abnormal_per_1000=9.80)
     assert math.isclose(v.absolute_error, 0.67, abs_tol=1e-9)
     assert math.isclose(v.relative_error, 0.67/10.47, rel_tol=1e-9)

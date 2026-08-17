@@ -32,13 +32,36 @@ class CellSource(str, Enum):
     INPAINTED = "inpainted"           # clipped cell completed by diffusion inpainting
 
     @property
+    def is_primary(self) -> bool:
+        """
+        Primary (biomarker A) = cells detected directly as clean single cells.
+        This is the validated detection->classification path. Watershed-split
+        and inpainted cells are products of the reconstruction pipeline
+        (documented as unreliable) and are therefore NOT part of the primary
+        biomarker — they form the exploratory reconstruction layer.
+        """
+        return self is CellSource.SINGLE
+
+    @property
+    def is_reconstruction(self) -> bool:
+        """
+        Reconstruction layer (biomarker C) = anything produced by the multi-cell
+        reconstruction process: watershed-split whole cells AND diffusion-inpainted
+        cells. Reported separately as exploratory, never in the primary biomarker.
+        """
+        return self in (CellSource.WATERSHED_WHOLE, CellSource.INPAINTED)
+
+    # kept for clarity: whether the pixels are real (observed) vs generated.
+    # NOTE: observed != primary. A watershed_whole cell is observed (real pixels)
+    # but is NOT primary, because it came from the unreliable splitting process.
+    @property
     def is_observed(self) -> bool:
-        """Observed = every pixel is real (no generated content)."""
+        """True if every pixel is real (no diffusion-generated content)."""
         return self in (CellSource.SINGLE, CellSource.WATERSHED_WHOLE)
 
     @property
     def is_reconstructed(self) -> bool:
-        """Reconstructed = contains diffusion-generated pixels."""
+        """True if the cell contains diffusion-generated pixels."""
         return self is CellSource.INPAINTED
 
 
@@ -160,17 +183,21 @@ def compute_biomarker(cells: Iterable[Cell]) -> BiomarkerResult:
     """
     Compute the three-way ENA biomarker from an iterable of classified cells.
 
-    A real-only        : source.is_observed        (single + watershed_whole)
+    A real-only        : source.is_primary        (single cells only) [PRIMARY]
     B combined         : all cells
-    C reconstruction   : source.is_reconstructed   (inpainted)
+    C reconstruction   : source.is_reconstruction (watershed_whole + inpainted) [EXPLORATORY]
+
+    Note: watershed_whole cells have real pixels (observed) but are NOT primary,
+    because they came from the unreliable multi-cell splitting process. They are
+    grouped with inpainted cells in the exploratory reconstruction layer (C).
 
     Empty input yields zeroed biomarkers (per_1000 = 0.0), not an error.
     """
     cells = list(cells)  # allow multiple passes / reuse
 
-    a_total, a_abn = _count(cells, lambda c: c.source.is_observed)
+    a_total, a_abn = _count(cells, lambda c: c.source.is_primary)
     b_total, b_abn = _count(cells, lambda c: True)
-    c_total, c_abn = _count(cells, lambda c: c.source.is_reconstructed)
+    c_total, c_abn = _count(cells, lambda c: c.source.is_reconstruction)
 
     # per-source breakdown for transparency
     breakdown: dict[str, SourceBreakdown] = {

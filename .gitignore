@@ -14,6 +14,7 @@ env/
 *.png
 *.jpg
 *.jpeg
+*.safetensors
 
 # Secrets
 .env
