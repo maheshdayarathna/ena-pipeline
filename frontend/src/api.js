@@ -48,3 +48,27 @@ export async function analyzeImage(file, useDiffusion = false) {
 
   return response.json();
 }
+
+/**
+ * Fetch GET /history and return the array of past analyses (newest first,
+ * as returned by the backend). Throws an Error with a human-readable
+ * message on network failure or a non-2xx response, so callers can show
+ * it directly to the user.
+ */
+export async function fetchHistory() {
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/history`);
+  } catch {
+    throw new Error(
+      `Could not reach the backend at ${API_BASE}. Is it running?`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to load history (${response.status}): ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.analyses ?? [];
+}

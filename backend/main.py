@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.biomarker import Cell, CellSource, compute_biomarker
 from core.schemas import BiomarkerRequest, BiomarkerResponse
+from core import storage
 from pipeline.base import Pipeline
 from pipeline.mock_pipeline import MockPipeline
 from pipeline.real_pipeline import RealPipeline
@@ -35,6 +36,7 @@ def build_pipeline() -> Pipeline:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    storage.init_db()
     # runs ONCE at startup: build the pipeline (models load here, not per request)
     print("Loading pipeline (this loads the models once)...")
     app.state.pipeline = build_pipeline()
@@ -109,7 +111,24 @@ async def analyze(request: Request, file: UploadFile = File(...),
     result = pipe.analyze(image_bytes, filename=file.filename or "", use_diffusion=use_diffusion)
     biomarker_resp = _biomarker_payload(compute_biomarker(result.cells))
 
+    # persist the result (no image/cell data stored — just biomarker + metadata)
+    try:
+        storage.save_analysis(
+            filename=file.filename or "",
+            use_diffusion=use_diffusion,
+            biomarker=biomarker_resp.model_dump(),
+            stage_counts=result.meta.get("stage_counts", {}),
+        )
+    except Exception as e:
+        print("Warning: failed to save analysis:", e)
+
     return {
         "biomarker": biomarker_resp.model_dump(),
         "meta": result.meta,
     }
+
+
+@app.get("/history", tags=["history"])
+def history(limit: int = 50) -> dict:
+    """Return recent analysis results (newest first)."""
+    return {"analyses": storage.list_analyses(limit=limit)}

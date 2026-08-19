@@ -7,3 +7,12 @@ export function formatPer1000(value) {
 export function formatCount(value) {
   return Number(value).toLocaleString();
 }
+
+// Renders an ISO timestamp (e.g. from the backend's created_at) in the
+// user's locale, or "-" if it's missing/unparseable.
+export function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
