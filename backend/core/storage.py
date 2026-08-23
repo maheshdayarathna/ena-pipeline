@@ -87,3 +87,18 @@ def list_analyses(limit: int = 50) -> List[Dict[str, Any]]:
             d["stage_counts"] = {}
         out.append(d)
     return out
+
+
+def get_analysis(analysis_id: int):
+    """Return a single analysis by id, or None."""
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["use_diffusion"] = bool(d["use_diffusion"])
+    try:
+        d["stage_counts"] = json.loads(d["stage_counts"]) if d["stage_counts"] else {}
+    except Exception:
+        d["stage_counts"] = {}
+    return d

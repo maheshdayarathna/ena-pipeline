@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import CellOverlay from "./CellOverlay";
+import CellOverlayLegend from "./CellOverlayLegend";
 
 // Key the diffusion toggle is persisted under, so it survives page refreshes
 // and carries over between uploads.
@@ -18,12 +20,22 @@ function loadStoredUseDiffusion() {
 // state. It knows nothing about the API call itself — it just calls the
 // onAnalyze(file) prop that App.jsx passes in, and App.jsx owns the
 // loading/result/error state that comes back from the network.
-export default function UploadSection({ onAnalyze, loading, error }) {
+export default function UploadSection({ onAnalyze, loading, error, resultMeta, analyzedFile }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [useDiffusion, setUseDiffusion] = useState(loadStoredUseDiffusion);
+  const [showOverlay, setShowOverlay] = useState(true);
   const inputRef = useRef(null);
+
+  // The overlay's boxes were computed on `analyzedFile` — only draw them
+  // while the preview is still showing that same file (not some new,
+  // not-yet-analyzed selection).
+  const cells = resultMeta?.cells;
+  const overlayAvailable =
+    Boolean(cells && cells.length && resultMeta?.image_size) &&
+    file != null &&
+    file === analyzedFile;
 
   useEffect(() => {
     try {
@@ -74,10 +86,12 @@ export default function UploadSection({ onAnalyze, loading, error }) {
       >
         {previewUrl ? (
           <div className="preview-wrap">
-            {/* Future work: draw detected-cell bounding boxes/overlay on top
-                of this preview image once the real pipeline exposes cell
-                coordinates. For now it's just a plain <img>. */}
-            <img src={previewUrl} alt="Selected smear preview" className="preview-img" />
+            <div className="preview-frame">
+              <img src={previewUrl} alt="Selected smear preview" className="preview-img" />
+              {overlayAvailable && showOverlay && (
+                <CellOverlay cells={cells} imageSize={resultMeta.image_size} />
+              )}
+            </div>
           </div>
         ) : (
           <p>Drag and drop an image here, or click to choose a file.</p>
@@ -90,6 +104,19 @@ export default function UploadSection({ onAnalyze, loading, error }) {
           onChange={(e) => handleFiles(e.target.files)}
         />
       </div>
+
+      {overlayAvailable && (
+        <div className="overlay-controls">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setShowOverlay((prev) => !prev)}
+          >
+            {showOverlay ? "Hide cell overlay" : "Show cell overlay"}
+          </button>
+          {showOverlay && <CellOverlayLegend />}
+        </div>
+      )}
 
       <button
         className="btn-primary"

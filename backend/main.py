@@ -19,10 +19,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import io as _io
 
 from core.biomarker import Cell, CellSource, compute_biomarker
 from core.schemas import BiomarkerRequest, BiomarkerResponse
 from core import storage
+from core import report
 from pipeline.base import Pipeline
 from pipeline.mock_pipeline import MockPipeline
 from pipeline.real_pipeline import RealPipeline
@@ -132,3 +135,18 @@ async def analyze(request: Request, file: UploadFile = File(...),
 def history(limit: int = 50) -> dict:
     """Return recent analysis results (newest first)."""
     return {"analyses": storage.list_analyses(limit=limit)}
+
+
+@app.get("/report/{analysis_id}", tags=["history"])
+def report_pdf(analysis_id: int):
+    """Generate a professional PDF result sheet for a stored analysis."""
+    a = storage.get_analysis(analysis_id)
+    if a is None:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    pdf_bytes = report.build_report_pdf(a)
+    fname = f"ena_report_{analysis_id}.pdf"
+    return StreamingResponse(
+        _io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

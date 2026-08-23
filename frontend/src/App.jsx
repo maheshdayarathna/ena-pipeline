@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { analyzeImage, fetchHistory } from "./api";
+import { analyzeImage, fetchHistory, API_BASE } from "./api";
 import Header from "./components/Header";
 import SyntheticBanner from "./components/SyntheticBanner";
 import UploadSection from "./components/UploadSection";
@@ -17,6 +17,10 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // The exact File object the current `result` was computed from — lets
+  // UploadSection know whether its preview still matches the analyzed
+  // image (and so whether the cell overlay boxes are still valid).
+  const [analyzedFile, setAnalyzedFile] = useState(null);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -44,14 +48,23 @@ export default function App() {
     try {
       const data = await analyzeImage(file, useDiffusion);
       setResult(data);
+      setAnalyzedFile(file);
       loadHistory();
     } catch (err) {
       setError(err.message);
       setResult(null);
+      setAnalyzedFile(null);
     } finally {
       setLoading(false);
     }
   }
+
+  // Only set if the backend's /analyze response ever starts returning the
+  // saved row's id (it doesn't today — the id is assigned by /history's
+  // storage layer after the response is built). When absent, there's simply
+  // no post-analysis download button; the same report is still reachable
+  // from the history table below once it refreshes.
+  const analyzedId = result?.id ?? result?.analysis_id ?? null;
 
   return (
     <div className="page">
@@ -59,13 +72,31 @@ export default function App() {
       {result && <SyntheticBanner note={result.meta.note} />}
 
       <main>
-        <UploadSection onAnalyze={handleAnalyze} loading={loading} error={error} />
+        <UploadSection
+          onAnalyze={handleAnalyze}
+          loading={loading}
+          error={error}
+          resultMeta={result?.meta ?? null}
+          analyzedFile={analyzedFile}
+        />
 
         {result && (
           <>
             <PrimarySection biomarker={result.biomarker} />
             <ReconstructionSection biomarker={result.biomarker} />
             <BreakdownSection biomarker={result.biomarker} />
+            {analyzedId != null && (
+              <p className="report-download-row">
+                <a
+                  className="btn-secondary"
+                  href={`${API_BASE}/report/${analyzedId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Download report (PDF)
+                </a>
+              </p>
+            )}
           </>
         )}
 
