@@ -1,14 +1,10 @@
 """
 Verify the classifier's label index against known-label crops.
 
-Run from backend/:   python verify_classifier.py
-
 It reads your frozen labels CSV, picks a few known-NC (normal) and known-
 abnormal crops, and classifies them. If known-abnormal cells come out
 "normal", flip ABNORMAL_INDEX in pipeline/classifier.py.
 
-EDIT the two paths below to match where your frozen CSV and crop images live
-on THIS computer (download them from Drive if needed).
 """
 
 import csv
